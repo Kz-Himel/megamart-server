@@ -1,4 +1,4 @@
-# Product Marketplace — Server
+# MegaMart — Server
 
 A production-ready REST API for a product marketplace, built with **Express.js**, **TypeScript**, **Prisma ORM**, and **PostgreSQL**. It powers authentication, catalog management, reviews, and order processing for the [Product Marketplace Client](../product-marketplace-client).
 
