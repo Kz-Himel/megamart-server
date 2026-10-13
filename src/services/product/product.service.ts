@@ -2,6 +2,16 @@ import { prisma } from '../../lib/prisma';
 import { z } from 'zod';
 import { createProductSchema, updateProductSchema } from './product.validation';
 
+export interface ProductQueryFilters {
+  categoryId?: string;
+  search?: string;
+  minPrice?: string | number;
+  maxPrice?: string | number;
+  inStock?: string | boolean;
+  status?: string;
+  sort?: string;
+}
+
 export class ProductService {
   static async createProduct(data: z.infer<typeof createProductSchema>) {
     const validated = createProductSchema.parse(data);
@@ -38,9 +48,53 @@ export class ProductService {
     });
   }
 
-  static async getAllProducts() {
+  static async getAllProducts(filters?: ProductQueryFilters) {
+    const where: any = { isDeleted: false };
+
+    if (filters?.categoryId) {
+      where.categoryId = filters.categoryId;
+    }
+
+    if (filters?.search && typeof filters.search === 'string') {
+      const searchTerm = filters.search.trim();
+      if (searchTerm) {
+        where.OR = [
+          { name: { contains: searchTerm, mode: 'insensitive' } },
+          { description: { contains: searchTerm, mode: 'insensitive' } },
+        ];
+      }
+    }
+
+    if (filters?.minPrice !== undefined || filters?.maxPrice !== undefined) {
+      where.price = {};
+      if (filters.minPrice !== undefined && filters.minPrice !== '') {
+        const min = Number(filters.minPrice);
+        if (!isNaN(min)) where.price.gte = min;
+      }
+      if (filters.maxPrice !== undefined && filters.maxPrice !== '') {
+        const max = Number(filters.maxPrice);
+        if (!isNaN(max)) where.price.lte = max;
+      }
+    }
+
+    if (filters?.inStock === true || filters?.inStock === 'true') {
+      where.stock = { gt: 0 };
+      where.status = 'ACTIVE';
+    } else if (filters?.status) {
+      where.status = filters.status;
+    }
+
+    let orderBy: any = { createdAt: 'desc' };
+    if (filters?.sort === 'price_asc' || filters?.sort === 'price-asc') {
+      orderBy = { price: 'asc' };
+    } else if (filters?.sort === 'price_desc' || filters?.sort === 'price-desc') {
+      orderBy = { price: 'desc' };
+    } else if (filters?.sort === 'name_asc' || filters?.sort === 'name-asc') {
+      orderBy = { name: 'asc' };
+    }
+
     return await prisma.product.findMany({
-      where: { isDeleted: false },
+      where,
       include: {
         category: {
           select: {
@@ -49,7 +103,7 @@ export class ProductService {
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy,
     });
   }
 

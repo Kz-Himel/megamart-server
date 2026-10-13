@@ -17,7 +17,7 @@ export const sendError = (
   res: Response,
   statusCode: number,
   message: string,
-  errors: any[] = []
+  errors: unknown = []
 ) => {
   return res.status(statusCode).json({
     success: false,

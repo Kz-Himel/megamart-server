@@ -34,7 +34,7 @@ export class ProductController {
     next: NextFunction
   ) {
     try {
-      const products = await ProductService.getAllProducts();
+      const products = await ProductService.getAllProducts(req.query as any);
 
       return sendSuccess(
         res,
