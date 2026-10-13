@@ -8,7 +8,11 @@ const router = Router();
 // Protect all order endpoints
 router.use(authenticate);
 
+// Checkout and single-order placement
+router.post('/checkout', OrderController.checkout);
 router.post('/', OrderController.createOrder);
+
+// Query and mutate orders
 router.get('/', OrderController.getAllOrders);
 router.get('/:id', OrderController.getOrderById);
 router.patch('/:id', OrderController.updateOrder);

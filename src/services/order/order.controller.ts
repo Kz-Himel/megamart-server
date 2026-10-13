@@ -5,7 +5,34 @@ import { sendSuccess } from '../../utils/response';
 
 export class OrderController {
   // ==========================================
-  // Create Order
+  // Process Full Checkout
+  // ==========================================
+  static async checkout(
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+  ) {
+    try {
+      const userId = req.user!.userId;
+
+      const result = await OrderService.checkout(
+        userId,
+        req.body
+      );
+
+      return sendSuccess(
+        res,
+        201,
+        'Checkout completed successfully',
+        result
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // ==========================================
+  // Create Single Product Order
   // ==========================================
   static async createOrder(
     req: AuthRequest,
