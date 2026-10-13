@@ -25,7 +25,7 @@ export class AuthService {
         name: validated.name,
         email: validated.email,
         password: hashedPassword,
-        role: validated.role || 'USER',
+        role: 'USER',
       },
       select: {
         id: true,

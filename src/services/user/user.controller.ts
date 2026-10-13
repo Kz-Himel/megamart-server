@@ -1,13 +1,16 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
+import { AuthRequest } from '../../types';
 import { UserService } from './user.service';
 import { sendSuccess } from '../../utils/response';
+import { UserRole } from '@prisma/client';
+import { AppError } from '../../utils/AppError';
 
 export class UserController {
   // ==========================================
-  // Create User
+  // Create User (Admin Only)
   // ==========================================
   static async createUser(
-    req: Request,
+    req: AuthRequest,
     res: Response,
     next: NextFunction
   ) {
@@ -26,10 +29,10 @@ export class UserController {
   }
 
   // ==========================================
-  // Get All Users
+  // Get All Users (Admin Only)
   // ==========================================
   static async getAllUsers(
-    req: Request,
+    req: AuthRequest,
     res: Response,
     next: NextFunction
   ) {
@@ -48,15 +51,23 @@ export class UserController {
   }
 
   // ==========================================
-  // Get User By ID
+  // Get User By ID (Owner or Admin)
   // ==========================================
   static async getUserById(
-    req: Request<{ id: string }>,
+    req: AuthRequest,
     res: Response,
     next: NextFunction
   ) {
     try {
-      const user = await UserService.getUserById(req.params.id);
+      const targetUserId = req.params.id as string;
+      const currentUser = req.user!;
+
+      // Enforce ownership: non-admin can only access their own user profile
+      if (currentUser.role !== UserRole.ADMIN && currentUser.userId !== targetUserId) {
+        throw new AppError(403, 'Forbidden: You cannot access this user profile');
+      }
+
+      const user = await UserService.getUserById(targetUserId);
 
       return sendSuccess(
         res,
@@ -70,17 +81,31 @@ export class UserController {
   }
 
   // ==========================================
-  // Update User
+  // Update User (Owner or Admin)
   // ==========================================
   static async updateUser(
-    req: Request<{ id: string }>,
+    req: AuthRequest,
     res: Response,
     next: NextFunction
   ) {
     try {
+      const targetUserId = req.params.id as string;
+      const currentUser = req.user!;
+
+      // Enforce ownership: non-admin can only update their own profile
+      if (currentUser.role !== UserRole.ADMIN && currentUser.userId !== targetUserId) {
+        throw new AppError(403, 'Forbidden: You cannot modify this user profile');
+      }
+
+      // Prevent privilege escalation: non-admin cannot alter roles
+      const updatePayload = { ...req.body };
+      if (currentUser.role !== UserRole.ADMIN && updatePayload.role) {
+        delete updatePayload.role;
+      }
+
       const user = await UserService.updateUser(
-        req.params.id,
-        req.body
+        targetUserId,
+        updatePayload
       );
 
       return sendSuccess(
@@ -95,15 +120,15 @@ export class UserController {
   }
 
   // ==========================================
-  // Delete User
+  // Delete User (Admin Only)
   // ==========================================
   static async deleteUser(
-    req: Request<{ id: string }>,
+    req: AuthRequest,
     res: Response,
     next: NextFunction
   ) {
     try {
-      const user = await UserService.deleteUser(req.params.id);
+      const user = await UserService.deleteUser(req.params.id as string);
 
       return sendSuccess(
         res,
