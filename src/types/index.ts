@@ -1,5 +1,5 @@
 import { Request } from 'express';
-import { UserRole } from '@prisma/client';
+import { UserRole, Store } from '@prisma/client';
 
 export interface JwtPayload {
   userId: string;
@@ -9,4 +9,9 @@ export interface JwtPayload {
 
 export interface AuthRequest extends Request {
   user?: JwtPayload;
+  store?: Store;
+}
+
+export interface SellerRequest extends AuthRequest {
+  store: Store;
 }

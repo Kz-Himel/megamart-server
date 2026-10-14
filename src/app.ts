@@ -13,6 +13,9 @@ import productRoutes from './routes/product.routes';
 import reviewRoutes from './routes/review.routes';
 import orderRoutes from './routes/order.routes';
 import uploadRoutes from './routes/upload.routes';
+import sellerRoutes from './routes/seller.routes';
+import adminRoutes from './routes/admin.routes';
+import notificationRoutes from './routes/notification.routes';
 
 const app: Application = express();
 
@@ -32,6 +35,9 @@ app.use('/api/products', productRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/uploads', uploadRoutes);
+app.use('/api/seller', sellerRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health Check
 app.get('/health', (req: Request, res: Response) => {

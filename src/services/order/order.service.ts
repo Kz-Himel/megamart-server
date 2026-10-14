@@ -6,8 +6,9 @@ import {
   checkoutSchema,
   CheckoutInput,
 } from './order.validation';
-import { UserRole, OrderStatus } from '@prisma/client';
+import { UserRole, OrderStatus, PayoutStatus } from '@prisma/client';
 import { AppError } from '../../utils/AppError';
+import { NotificationService } from '../notification/notification.service';
 
 export class OrderService {
   // In-memory idempotency cache for checkout operations to prevent duplicate double-clicks
@@ -124,6 +125,28 @@ export class OrderService {
 
         const linePrice = Math.round(currentProduct.price * item.quantity * 100) / 100;
 
+        let commissionAmount = 0.0;
+        let sellerEarnings = 0.0;
+
+        if (currentProduct.storeId) {
+          const store = await tx.store.findUnique({
+            where: { id: currentProduct.storeId },
+          });
+          const rate = store?.commissionRate ?? 0.10;
+          commissionAmount = Math.round(linePrice * rate * 100) / 100;
+          sellerEarnings = Math.round((linePrice - commissionAmount) * 100) / 100;
+
+          if (store) {
+            await NotificationService.createNotification(
+              store.userId,
+              'New Order Received!',
+              `New order received for ${item.quantity}x "${currentProduct.name}". Net earnings: $${sellerEarnings.toFixed(2)}.`,
+              'ORDER_UPDATE',
+              '/seller/dashboard'
+            );
+          }
+        }
+
         const order = await tx.order.create({
           data: {
             quantity: item.quantity,
@@ -131,6 +154,10 @@ export class OrderService {
             status: OrderStatus.PENDING,
             userId,
             productId: item.productId,
+            storeId: currentProduct.storeId,
+            commissionAmount,
+            sellerEarnings,
+            payoutStatus: PayoutStatus.PENDING,
           },
           include: {
             product: {

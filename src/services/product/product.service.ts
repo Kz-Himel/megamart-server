@@ -84,6 +84,15 @@ export class ProductService {
       where.status = filters.status;
     }
 
+    where.AND = [
+      {
+        OR: [
+          { storeId: null },
+          { store: { status: 'APPROVED', isDeleted: false } },
+        ],
+      },
+    ];
+
     let orderBy: any = { createdAt: 'desc' };
     if (filters?.sort === 'price_asc' || filters?.sort === 'price-asc') {
       orderBy = { price: 'asc' };
@@ -102,6 +111,14 @@ export class ProductService {
             name: true,
           },
         },
+        store: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            logo: true,
+          },
+        },
       },
       orderBy,
     });
@@ -115,6 +132,16 @@ export class ProductService {
           select: {
             id: true,
             name: true,
+          },
+        },
+        store: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            logo: true,
+            city: true,
+            country: true,
           },
         },
         reviews: {

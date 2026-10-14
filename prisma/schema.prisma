@@ -9,7 +9,25 @@ datasource db {
 
 enum UserRole {
   USER
+  SELLER
   ADMIN
+}
+
+enum StoreStatus {
+  DRAFT
+  PENDING
+  UNDER_REVIEW
+  CHANGES_REQUESTED
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  PAID
+  REJECTED
 }
 
 enum CategoryStatus {
@@ -46,12 +64,104 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  reviews Review[]
-  orders  Order[]
+  reviews       Review[]
+  orders        Order[]
+  store         Store?
+  notifications Notification[]
 
   @@index([email])
   @@index([isDeleted])
   @@map("users")
+}
+
+model Store {
+  id              String      @id @default(uuid())
+  name            String
+  slug            String      @unique
+  description     String?
+  category        String?
+  logo            String?
+  banner          String?
+  phone           String?
+  email           String?
+  address         String?
+  city            String?
+  country         String?
+  taxId           String?
+  verificationDoc String?
+  status          StoreStatus @default(PENDING)
+  adminFeedback   String?
+  reviewedAt      DateTime?
+  reviewedBy      String?
+  commissionRate  Float       @default(0.10)
+  balance         Float       @default(0.0)
+  totalEarnings   Float       @default(0.0)
+  isDeleted       Boolean     @default(false)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  userId          String      @unique
+  user            User        @relation(fields: [userId], references: [id])
+  products        Product[]
+  orders          Order[]
+  auditLogs       StoreAuditLog[]
+  payouts         Payout[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([slug])
+  @@index([isDeleted])
+  @@map("stores")
+}
+
+model StoreAuditLog {
+  id         String      @id @default(uuid())
+  storeId    String
+  fromStatus StoreStatus
+  toStatus   StoreStatus
+  reason     String?
+  reviewedBy String
+  createdAt  DateTime    @default(now())
+
+  store      Store       @relation(fields: [storeId], references: [id])
+
+  @@index([storeId])
+  @@map("store_audit_logs")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  type      String   @default("INFO")
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+model Payout {
+  id            String       @id @default(uuid())
+  storeId       String
+  amount        Float
+  status        PayoutStatus @default(PENDING)
+  paymentMethod String?
+  accountInfo   String?
+  processedAt   DateTime?
+  notes         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  store         Store        @relation(fields: [storeId], references: [id])
+
+  @@index([storeId])
+  @@map("payouts")
 }
 
 model Category {
@@ -78,15 +188,18 @@ model Product {
   image       String?
   status      ProductStatus @default(ACTIVE)
   categoryId  String
+  storeId     String?
   isDeleted   Boolean       @default(false)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
   category Category @relation(fields: [categoryId], references: [id])
+  store    Store?   @relation(fields: [storeId], references: [id])
   reviews  Review[]
   orders   Order[]
 
   @@index([categoryId])
+  @@index([storeId])
   @@index([isDeleted])
   @@map("products")
 }
@@ -112,21 +225,27 @@ model Review {
 }
 
 model Order {
-  id         String      @id @default(uuid())
-  quantity   Int
-  totalPrice Float
-  status     OrderStatus @default(PENDING)
-  userId     String
-  productId  String
-  isDeleted  Boolean     @default(false)
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  id               String       @id @default(uuid())
+  quantity         Int
+  totalPrice       Float
+  status           OrderStatus  @default(PENDING)
+  userId           String
+  productId        String
+  storeId          String?
+  commissionAmount Float        @default(0.0)
+  sellerEarnings   Float        @default(0.0)
+  payoutStatus     PayoutStatus @default(PENDING)
+  isDeleted        Boolean      @default(false)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
   user    User    @relation(fields: [userId], references: [id])
   product Product @relation(fields: [productId], references: [id])
+  store   Store?  @relation(fields: [storeId], references: [id])
 
   @@index([userId])
   @@index([productId])
+  @@index([storeId])
   @@index([isDeleted])
   @@map("orders")
 }
