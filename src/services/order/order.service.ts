@@ -98,91 +98,113 @@ export class OrderService {
     const grandTotal = Math.round((taxableSubtotal + shippingFee + tax) * 100) / 100;
 
     // 4. Atomic Execution: Inventory Deduction & Order Creation
-    const createdOrders = await prisma.$transaction(async (tx) => {
-      const orders = [];
+    const pendingNotifications: Array<{
+      userId: string;
+      title: string;
+      message: string;
+      type: string;
+      link: string;
+    }> = [];
 
-      for (const item of validated.items) {
-        // Query inside transaction to lock and re-verify stock
-        const currentProduct = await tx.product.findUnique({
-          where: { id: item.productId },
-        });
+    const createdOrders = await prisma.$transaction(
+      async (tx) => {
+        const orders = [];
 
-        if (!currentProduct || currentProduct.stock < item.quantity) {
-          throw new AppError(
-            400,
-            `Stock changed during checkout for "${currentProduct?.name || item.productId}". Available: ${currentProduct?.stock ?? 0}.`
-          );
-        }
-
-        const newStock = currentProduct.stock - item.quantity;
-        await tx.product.update({
-          where: { id: currentProduct.id },
-          data: {
-            stock: newStock,
-            status: newStock === 0 ? 'OUT_OF_STOCK' : currentProduct.status,
-          },
-        });
-
-        const linePrice = Math.round(currentProduct.price * item.quantity * 100) / 100;
-
-        let commissionAmount = 0.0;
-        let sellerEarnings = 0.0;
-
-        if (currentProduct.storeId) {
-          const store = await tx.store.findUnique({
-            where: { id: currentProduct.storeId },
+        for (const item of validated.items) {
+          // Query inside transaction to lock and re-verify stock
+          const currentProduct = await tx.product.findUnique({
+            where: { id: item.productId },
           });
-          const rate = store?.commissionRate ?? 0.10;
-          commissionAmount = Math.round(linePrice * rate * 100) / 100;
-          sellerEarnings = Math.round((linePrice - commissionAmount) * 100) / 100;
 
-          if (store) {
-            await NotificationService.createNotification(
-              store.userId,
-              'New Order Received!',
-              `New order received for ${item.quantity}x "${currentProduct.name}". Net earnings: $${sellerEarnings.toFixed(2)}.`,
-              'ORDER_UPDATE',
-              '/seller/dashboard'
+          if (!currentProduct || currentProduct.stock < item.quantity) {
+            throw new AppError(
+              400,
+              `Stock changed during checkout for "${currentProduct?.name || item.productId}". Available: ${currentProduct?.stock ?? 0}.`
             );
           }
+
+          const newStock = currentProduct.stock - item.quantity;
+          await tx.product.update({
+            where: { id: currentProduct.id },
+            data: {
+              stock: newStock,
+              status: newStock === 0 ? 'OUT_OF_STOCK' : currentProduct.status,
+            },
+          });
+
+          const linePrice = Math.round(currentProduct.price * item.quantity * 100) / 100;
+
+          let commissionAmount = 0.0;
+          let sellerEarnings = 0.0;
+
+          if (currentProduct.storeId) {
+            const store = await tx.store.findUnique({
+              where: { id: currentProduct.storeId },
+            });
+            const rate = store?.commissionRate ?? 0.10;
+            commissionAmount = Math.round(linePrice * rate * 100) / 100;
+            sellerEarnings = Math.round((linePrice - commissionAmount) * 100) / 100;
+
+            if (store) {
+              pendingNotifications.push({
+                userId: store.userId,
+                title: 'New Order Received!',
+                message: `New order received for ${item.quantity}x "${currentProduct.name}". Net earnings: $${sellerEarnings.toFixed(2)}.`,
+                type: 'ORDER_UPDATE',
+                link: '/seller/dashboard',
+              });
+            }
+          }
+
+          const order = await tx.order.create({
+            data: {
+              quantity: item.quantity,
+              totalPrice: linePrice,
+              status: OrderStatus.PENDING,
+              userId,
+              productId: item.productId,
+              storeId: currentProduct.storeId,
+              commissionAmount,
+              sellerEarnings,
+              payoutStatus: PayoutStatus.PENDING,
+            },
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  price: true,
+                  image: true,
+                },
+              },
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          });
+
+          orders.push(order);
         }
 
-        const order = await tx.order.create({
-          data: {
-            quantity: item.quantity,
-            totalPrice: linePrice,
-            status: OrderStatus.PENDING,
-            userId,
-            productId: item.productId,
-            storeId: currentProduct.storeId,
-            commissionAmount,
-            sellerEarnings,
-            payoutStatus: PayoutStatus.PENDING,
-          },
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-                price: true,
-                image: true,
-              },
-            },
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
-            },
-          },
-        });
+        return orders;
+      },
+      { maxWait: 15000, timeout: 30000 }
+    );
 
-        orders.push(order);
-      }
-
-      return orders;
-    });
+    // Asynchronously dispatch notifications after transaction has committed
+    for (const notif of pendingNotifications) {
+      NotificationService.createNotification(
+        notif.userId,
+        notif.title,
+        notif.message,
+        notif.type,
+        notif.link
+      ).catch(() => {});
+    }
 
     // 5. Build Authoritative Order Confirmation
     const orderReference = `MM-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;

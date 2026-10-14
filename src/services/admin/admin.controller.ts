@@ -1,8 +1,16 @@
 import { Response } from 'express';
+import { ZodError } from 'zod';
 import { AuthRequest } from '../../types';
 import { AdminService } from './admin.service';
 import { sendSuccess, sendError } from '../../utils/response';
 import { StoreStatus, PayoutStatus } from '@prisma/client';
+
+function handleError(res: Response, error: any, defaultMsg: string) {
+  if (error instanceof ZodError || error?.name === 'ZodError') {
+    return sendError(res, 400, 'Validation Error', error.issues);
+  }
+  return sendError(res, error.statusCode || 500, error.message || defaultMsg);
+}
 
 export class AdminController {
   // Get all sellers with filter & search
@@ -17,7 +25,7 @@ export class AdminController {
       });
       return sendSuccess(res, 200, 'Sellers retrieved successfully', result);
     } catch (error: any) {
-      return sendError(res, error.statusCode || 500, error.message || 'Failed to retrieve sellers');
+      return handleError(res, error, 'Failed to retrieve sellers');
     }
   }
 
@@ -28,7 +36,7 @@ export class AdminController {
       const seller = await AdminService.getSellerById(id);
       return sendSuccess(res, 200, 'Seller details retrieved successfully', seller);
     } catch (error: any) {
-      return sendError(res, error.statusCode || 500, error.message || 'Failed to retrieve seller');
+      return handleError(res, error, 'Failed to retrieve seller');
     }
   }
 
@@ -41,7 +49,7 @@ export class AdminController {
       const updated = await AdminService.updateSellerStatus(id, adminId, status, reason);
       return sendSuccess(res, 200, `Seller status successfully updated to ${status}`, updated);
     } catch (error: any) {
-      return sendError(res, error.statusCode || 500, error.message || 'Failed to update seller status');
+      return handleError(res, error, 'Failed to update seller status');
     }
   }
 
@@ -53,7 +61,7 @@ export class AdminController {
       const updated = await AdminService.updateSellerCommission(id, Number(commissionRate));
       return sendSuccess(res, 200, 'Commission rate updated successfully', updated);
     } catch (error: any) {
-      return sendError(res, error.statusCode || 500, error.message || 'Failed to update commission rate');
+      return handleError(res, error, 'Failed to update commission rate');
     }
   }
 
@@ -64,7 +72,7 @@ export class AdminController {
       const payouts = await AdminService.getAllPayouts(status);
       return sendSuccess(res, 200, 'Payout requests retrieved successfully', payouts);
     } catch (error: any) {
-      return sendError(res, error.statusCode || 500, error.message || 'Failed to retrieve payouts');
+      return handleError(res, error, 'Failed to retrieve payouts');
     }
   }
 
@@ -76,7 +84,7 @@ export class AdminController {
       const updated = await AdminService.processPayout(id, adminId, status, notes);
       return sendSuccess(res, 200, `Payout updated to ${status}`, updated);
     } catch (error: any) {
-      return sendError(res, error.statusCode || 500, error.message || 'Failed to process payout');
+      return handleError(res, error, 'Failed to process payout');
     }
   }
 }

@@ -1,8 +1,16 @@
 import { Response } from 'express';
+import { ZodError } from 'zod';
 import { AuthRequest } from '../../types';
 import { SellerService } from './seller.service';
 import { sendSuccess, sendError } from '../../utils/response';
 import { OrderStatus } from '@prisma/client';
+
+function handleError(res: Response, error: any, defaultMsg: string) {
+  if (error instanceof ZodError || error?.name === 'ZodError') {
+    return sendError(res, 400, 'Validation Error', error.issues);
+  }
+  return sendError(res, error.statusCode || 500, error.message || defaultMsg);
+}
 
 export class SellerController {
   // Apply for seller account
@@ -12,7 +20,7 @@ export class SellerController {
       const result = await SellerService.apply(userId, req.body);
       return sendSuccess(res, 201, 'Seller application submitted successfully for review', result);
     } catch (error: any) {
-      return sendError(res, error.statusCode || 500, error.message || 'Failed to submit seller application');
+      return handleError(res, error, 'Failed to submit seller application');
     }
   }
 
@@ -23,7 +31,7 @@ export class SellerController {
       const store = await SellerService.getMyStore(userId);
       return sendSuccess(res, 200, 'Seller store retrieved successfully', store);
     } catch (error: any) {
-      return sendError(res, error.statusCode || 500, error.message || 'Failed to retrieve store');
+      return handleError(res, error, 'Failed to retrieve store');
     }
   }
 
@@ -35,7 +43,7 @@ export class SellerController {
       const result = await SellerService.updateStoreProfile(userId, storeId, req.body);
       return sendSuccess(res, 200, 'Store profile updated successfully', result);
     } catch (error: any) {
-      return sendError(res, error.statusCode || 500, error.message || 'Failed to update store profile');
+      return handleError(res, error, 'Failed to update store profile');
     }
   }
 
@@ -46,7 +54,7 @@ export class SellerController {
       const products = await SellerService.getSellerProducts(storeId);
       return sendSuccess(res, 200, 'Seller products retrieved successfully', products);
     } catch (error: any) {
-      return sendError(res, error.statusCode || 500, error.message || 'Failed to retrieve products');
+      return handleError(res, error, 'Failed to retrieve products');
     }
   }
 
@@ -56,7 +64,7 @@ export class SellerController {
       const product = await SellerService.createSellerProduct(storeId, req.body);
       return sendSuccess(res, 201, 'Product created successfully', product);
     } catch (error: any) {
-      return sendError(res, error.statusCode || 500, error.message || 'Failed to create product');
+      return handleError(res, error, 'Failed to create product');
     }
   }
 
@@ -67,7 +75,7 @@ export class SellerController {
       const product = await SellerService.updateSellerProduct(storeId, id, req.body);
       return sendSuccess(res, 200, 'Product updated successfully', product);
     } catch (error: any) {
-      return sendError(res, error.statusCode || 500, error.message || 'Failed to update product');
+      return handleError(res, error, 'Failed to update product');
     }
   }
 
@@ -78,7 +86,7 @@ export class SellerController {
       await SellerService.deleteSellerProduct(storeId, id);
       return sendSuccess(res, 200, 'Product deleted successfully');
     } catch (error: any) {
-      return sendError(res, error.statusCode || 500, error.message || 'Failed to delete product');
+      return handleError(res, error, 'Failed to delete product');
     }
   }
 
@@ -90,7 +98,7 @@ export class SellerController {
       const orders = await SellerService.getSellerOrders(storeId, status);
       return sendSuccess(res, 200, 'Seller orders retrieved successfully', orders);
     } catch (error: any) {
-      return sendError(res, error.statusCode || 500, error.message || 'Failed to retrieve orders');
+      return handleError(res, error, 'Failed to retrieve orders');
     }
   }
 
@@ -102,7 +110,7 @@ export class SellerController {
       const updatedOrder = await SellerService.updateSellerOrderStatus(storeId, id, status);
       return sendSuccess(res, 200, 'Order status updated successfully', updatedOrder);
     } catch (error: any) {
-      return sendError(res, error.statusCode || 500, error.message || 'Failed to update order status');
+      return handleError(res, error, 'Failed to update order status');
     }
   }
 
@@ -113,7 +121,7 @@ export class SellerController {
       const analytics = await SellerService.getSellerAnalytics(storeId);
       return sendSuccess(res, 200, 'Seller analytics retrieved successfully', analytics);
     } catch (error: any) {
-      return sendError(res, error.statusCode || 500, error.message || 'Failed to load analytics');
+      return handleError(res, error, 'Failed to load analytics');
     }
   }
 
@@ -124,7 +132,7 @@ export class SellerController {
       const payout = await SellerService.requestPayout(storeId, req.body);
       return sendSuccess(res, 201, 'Payout request submitted successfully', payout);
     } catch (error: any) {
-      return sendError(res, error.statusCode || 500, error.message || 'Failed to request payout');
+      return handleError(res, error, 'Failed to request payout');
     }
   }
 
@@ -134,7 +142,7 @@ export class SellerController {
       const payouts = await SellerService.getMyPayouts(storeId);
       return sendSuccess(res, 200, 'Payout history retrieved successfully', payouts);
     } catch (error: any) {
-      return sendError(res, error.statusCode || 500, error.message || 'Failed to retrieve payouts');
+      return handleError(res, error, 'Failed to retrieve payouts');
     }
   }
 
@@ -145,7 +153,7 @@ export class SellerController {
       const store = await SellerService.getPublicStore(slug);
       return sendSuccess(res, 200, 'Public store details retrieved', store);
     } catch (error: any) {
-      return sendError(res, error.statusCode || 500, error.message || 'Store not found');
+      return handleError(res, error, 'Store not found');
     }
   }
 }
