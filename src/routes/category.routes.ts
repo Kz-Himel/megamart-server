@@ -15,3 +15,4 @@ router.patch('/:id', authenticate, authorize(UserRole.ADMIN), CategoryController
 router.delete('/:id', authenticate, authorize(UserRole.ADMIN), CategoryController.deleteCategory);
 
 export default router;
+
